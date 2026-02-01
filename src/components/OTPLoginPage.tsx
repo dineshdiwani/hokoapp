@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeftIcon, PhoneIcon, CheckIcon, LocationIcon } from './icons/Icons';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/lib/supabase';
+import { PRODUCT_CATEGORIES } from '@/constants/categories';
 
 interface OTPLoginPageProps {
   onBack: () => void;
@@ -17,6 +18,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
   const [selectedCity, setSelectedCity] = useState('');
   const [firmName, setFirmName] = useState('');
   const [managerName, setManagerName] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
@@ -33,13 +35,10 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
   }, [countdown]);
 
   const handleSendOTP = async () => {
-    // Validate mobile number
     if (mobile.length !== 10) { 
       setError('Please enter a valid 10-digit mobile number'); 
       return; 
     }
-    
-    // Reset states
     setIsLoading(true);
     setError('');
     setStatusMessage('Sending OTP...');
@@ -49,25 +48,18 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
     console.log('[OTP] Starting OTP send for:', mobile);
     
     try {
-      // Use supabase.functions.invoke for better reliability
       const { data, error: invokeError } = await supabase.functions.invoke('send-otp', {
         body: { mobile }
       });
-      
       console.log('[OTP] Response:', data, invokeError);
-      
       if (invokeError) {
         throw new Error(invokeError.message || 'Failed to send OTP');
       }
-      
       if (data?.success) {
-        // Store demo OTP and expiry for local verification
         if (data.demo_otp) {
           const otpValue = String(data.demo_otp).trim();
           setGeneratedOtp(otpValue);
           console.log('[OTP] OTP stored:', otpValue, 'Length:', otpValue.length);
-          
-          // Set expiry time (5 minutes from now as fallback)
           if (data.expires_at) {
             setOtpExpiresAt(new Date(data.expires_at));
           } else {
@@ -75,11 +67,9 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
           }
         }
         setStatusMessage('');
-        setOtp(['', '', '', '', '', '']); // Reset OTP input
+        setOtp(['', '', '', '', '', '']);
         setStep('otp');
         setCountdown(60);
-        
-        // Focus first OTP input after a short delay
         setTimeout(() => {
           otpRefs.current[0]?.focus();
         }, 100);
@@ -101,22 +91,13 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
     }
   };
 
-
   const handleOtpChange = (index: number, value: string) => {
-    // Only allow digits
-    if (!/^\d*$/.test(value)) return;
-    
-    // Take only the last character if multiple characters pasted
+    if (!/^*$/.test(value)) return;
     const digit = value.slice(-1);
-    
     const newOtp = [...otp];
     newOtp[index] = digit;
     setOtp(newOtp);
-    
-    // Clear any previous error when user starts typing
     if (error) setError('');
-    
-    // Auto-focus next input
     if (digit && index < 5) {
       otpRefs.current[index + 1]?.focus();
     }
@@ -130,15 +111,13 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
 
   const handleOtpPaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const pastedData = e.clipboardData.getData('text').replace(//g, '').slice(0, 6);
     if (pastedData.length > 0) {
       const newOtp = [...otp];
       for (let i = 0; i < pastedData.length && i < 6; i++) {
         newOtp[i] = pastedData[i];
       }
       setOtp(newOtp);
-      
-      // Focus the next empty input or the last one
       const nextEmptyIndex = newOtp.findIndex(d => !d);
       if (nextEmptyIndex !== -1) {
         otpRefs.current[nextEmptyIndex]?.focus();
@@ -154,7 +133,6 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
       setError('Please enter complete 6-digit OTP'); 
       return; 
     }
-    
     setIsLoading(true); 
     setError('');
     setStatusMessage('Verifying OTP...');
@@ -162,44 +140,26 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
     console.log('[OTP Verify] Entered OTP:', otpString);
     console.log('[OTP Verify] Stored OTP:', generatedOtp);
     console.log('[OTP Verify] Expiry:', otpExpiresAt);
-    
     try {
-      // First try local verification with demo OTP for instant response
       if (generatedOtp) {
         const storedOtp = String(generatedOtp).trim();
         const enteredOtp = String(otpString).trim();
-        
-        console.log('[OTP Verify] Comparing:', enteredOtp, '===', storedOtp);
-        console.log('[OTP Verify] Match:', enteredOtp === storedOtp);
-        
         if (enteredOtp === storedOtp) {
-          // Check if not expired
           const now = new Date();
           const isNotExpired = !otpExpiresAt || otpExpiresAt > now;
-          
-          console.log('[OTP Verify] Not expired:', isNotExpired);
-          
           if (isNotExpired) {
-            // OTP matches locally - proceed without database check
-            console.log('[OTP Verify] OTP verified locally - SUCCESS');
             setStatusMessage('');
             setIsLoading(false);
             setStep(isSeller ? 'seller-profile' : 'city');
             return;
           } else {
-            console.log('[OTP Verify] OTP expired');
             setError('OTP has expired. Please request a new one.');
             setStatusMessage('');
             setIsLoading(false);
             return;
           }
-        } else {
-          console.log('[OTP Verify] OTP mismatch - trying database verification');
         }
       }
-      
-      // Fallback to database verification
-      console.log('[OTP Verify] Attempting database verification');
       const { data: otpData, error: otpError } = await supabase
         .from('otp_verifications')
         .select('*')
@@ -210,18 +170,12 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-        
-      console.log('[OTP Verify] Database result:', otpData, otpError);
-        
       if (otpError || !otpData) {
         throw new Error('Invalid or expired OTP. Please check and try again.');
       }
-      
-      // Mark as verified in background (don't wait)
       supabase.from('otp_verifications').update({ verified: true }).eq('id', otpData.id).then(() => {
         console.log('[OTP Verify] Marked as verified in database');
       });
-      
       setStatusMessage('');
       setStep(isSeller ? 'seller-profile' : 'city');
     } catch (err: any) { 
@@ -238,11 +192,9 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
       setError('Please select your city'); 
       return; 
     }
-    
     setIsLoading(true); 
     setError('');
     setStatusMessage('Setting up your account...');
-    
     try {
       const { data: existingUser } = await supabase
         .from('users')
@@ -267,7 +219,6 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
           .single();
         user = newUser;
       }
-      
       setUser(user);
       const city = cities.find(c => c.id === selectedCity);
       if (city) setCurrentCity(city);
@@ -282,15 +233,13 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
   };
 
   const handleSellerProfile = async () => {
-    if (!firmName.trim() || !managerName.trim() || !selectedCity) { 
+    if (!firmName.trim() || !managerName.trim() || !selectedCity || !selectedCategory) { 
       setError('Please fill all fields'); 
       return; 
     }
-    
     setIsLoading(true); 
     setError('');
     setStatusMessage('Creating your seller profile...');
-    
     try {
       const { data: existingUser } = await supabase
         .from('users')
@@ -306,7 +255,8 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
             city_id: selectedCity, 
             is_seller: true, 
             firm_name: firmName, 
-            manager_name: managerName 
+            manager_name: managerName,
+            business_category: selectedCategory
           })
           .eq('id', existingUser.id)
           .select('*')
@@ -321,13 +271,13 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
             is_buyer: false, 
             is_seller: true, 
             firm_name: firmName, 
-            manager_name: managerName 
+            manager_name: managerName,
+            business_category: selectedCategory
           })
           .select('*')
           .single();
         user = newUser;
       }
-      
       setUser(user);
       const city = cities.find(c => c.id === selectedCity);
       if (city) setCurrentCity(city);
@@ -394,7 +344,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     <p className="text-blue-600 text-sm flex items-center gap-2">
                       <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       {statusMessage}
                     </p>
@@ -410,7 +360,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     <>
                       <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       Sending OTP...
                     </>
@@ -421,7 +371,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
               </div>
             </>
           )}
-          
+
           {step === 'otp' && (
             <>
               <div className="text-center mb-8">
@@ -455,25 +405,25 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     />
                   ))}
                 </div>
-                
+
                 {error && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
                     <p className="text-red-600 text-sm text-center">{error}</p>
                   </div>
                 )}
-                
+
                 {statusMessage && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
                     <p className="text-blue-600 text-sm text-center flex items-center justify-center gap-2">
                       <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       {statusMessage}
                     </p>
                   </div>
                 )}
-                
+
                 <button 
                   onClick={handleVerifyOTP} 
                   disabled={isLoading || otp.join('').length !== 6} 
@@ -483,7 +433,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     <>
                       <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       Verifying...
                     </>
@@ -502,7 +452,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
               </div>
             </>
           )}
-          
+
           {step === 'city' && (
             <>
               <div className="text-center mb-8">
@@ -536,7 +486,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     <p className="text-blue-600 text-sm flex items-center gap-2">
                       <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       {statusMessage}
                     </p>
@@ -552,7 +502,7 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     <>
                       <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       Setting up...
                     </>
@@ -563,13 +513,13 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
               </div>
             </>
           )}
-          
+
           {step === 'seller-profile' && (
             <>
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 [...]" />
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-gray-800">Seller Profile</h2>
@@ -592,7 +542,28 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                   placeholder="Manager Name" 
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-lg" 
                 />
-                
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => { setSelectedCategory(e.target.value); setError(''); }}
+                    className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-4 transition-all bg-white ${
+                      error && !selectedCategory
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
+                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-100'
+                    }`}
+                  >
+                    <option value="">Select a category</option>
+                    {PRODUCT_CATEGORIES.map(cat => (
+                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                    ))}
+                  </select>
+                  {error && !selectedCategory && <p className="mt-1 text-sm text-red-500">Please select a category</p>}
+                </div>
+
                 <select 
                   value={selectedCity} 
                   onChange={(e) => setSelectedCity(e.target.value)} 
@@ -603,35 +574,35 @@ const OTPLoginPage: React.FC<OTPLoginPageProps> = ({ onBack, onSuccess, isSeller
                     <option key={city.id} value={city.id}>{city.name}, {city.state}</option>
                   ))}
                 </select>
-                
+
                 {error && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
                     <p className="text-red-600 text-sm">{error}</p>
                   </div>
                 )}
-                
+
                 {statusMessage && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
                     <p className="text-blue-600 text-sm flex items-center gap-2">
                       <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       {statusMessage}
                     </p>
                   </div>
                 )}
-                
+
                 <button 
                   onClick={handleSellerProfile} 
-                  disabled={isLoading || !firmName || !managerName || !selectedCity} 
+                  disabled={isLoading || !firmName || !managerName || !selectedCity || !selectedCategory} 
                   className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
                     <>
                       <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2-647z"></path>
                       </svg>
                       Creating Profile...
                     </>
