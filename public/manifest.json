@@ -1,12 +1,12 @@
 {
-  "name": "My Web App",
-  "short_name": "WebApp",
-  "description": "My Progressive Web App",
+  "name": "Hoko App",
+  "short_name": "Hoko",
+  "description": "HokoApp is a web-based application for managing and using Hoko services.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0d6efd",
+  "theme_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {
