@@ -1,0 +1,38 @@
+{
+  "background_color": "#ffffff",
+  "description": "Hoko is a platform connecting buyers and sellers to trade products or services in their city with easy listing and offers management.",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "hokoapp",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "hoko",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "https://hokoapp.in/placeholder.svg",
+      "type": "image/svg+xml",
+      "isSquare": false,
+      "isPng": false,
+      "isWebp": false,
+      "isJpg": false,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    },
+    {
+      "src": "https://hokoapp.in/og.jpg",
+      "isSquare": false,
+      "isPng": false,
+      "isWebp": false,
+      "isJpg": true,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    }
+  ],
+  "id": "hokoapp"
+}
