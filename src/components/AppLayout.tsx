@@ -34,14 +34,18 @@ const AppContent: React.FC = () => {
   const [attachments, setAttachments] = useState<File[]>([]);
   const postCreatedRef = useRef(false);
 
-  // Redirect logged-in users
+  /* ----------------------------------
+     Redirect logged-in users
+  -----------------------------------*/
   useEffect(() => {
     if (user && currentCity && screen === 'welcome') {
       setScreen('dashboard');
     }
   }, [user, currentCity, screen]);
 
-  // ✅ CREATE POST (CITY-SAFE)
+  /* ----------------------------------
+     CREATE POST (WITH ATTACHMENTS)
+  -----------------------------------*/
   useEffect(() => {
     const createPendingPost = async () => {
       if (
@@ -58,9 +62,34 @@ const AppContent: React.FC = () => {
       setIsSubmittingPost(true);
 
       try {
+        /* 1️⃣ Upload attachments */
+        let attachmentUrls: string[] = [];
+
+        if (attachments.length > 0) {
+          for (const file of attachments) {
+            const ext = file.name.split('.').pop();
+            const filePath = `posts/${user.id}/${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}.${ext}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('attachments')
+              .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage
+              .from('attachments')
+              .getPublicUrl(filePath);
+
+            attachmentUrls.push(data.publicUrl);
+          }
+        }
+
+        /* 2️⃣ Insert post with attachment URLs */
         const { error } = await supabase.from('posts').insert({
           user_id: user.id,
-          city_id: currentCity.id, // ✅ FIXED
+          city_id: currentCity.id,
           product_name: productName,
           category: productRequirement.category || null,
           brand: productRequirement.brand || null,
@@ -70,6 +99,7 @@ const AppContent: React.FC = () => {
           details: productRequirement.details || null,
           status: 'active',
           offer_count: 0,
+          attachment_urls: attachmentUrls, // ✅ KEY FIX
         });
 
         if (error) {
@@ -78,7 +108,7 @@ const AppContent: React.FC = () => {
           setShowPostSuccess(true);
         }
       } catch (err) {
-        console.error('Unexpected error creating post:', err);
+        console.error('Post creation failed:', err);
       } finally {
         setIsSubmittingPost(false);
         setPendingPost(false);
@@ -87,8 +117,11 @@ const AppContent: React.FC = () => {
     };
 
     createPendingPost();
-  }, [pendingPost, user, currentCity, productName, productRequirement]);
+  }, [pendingPost, user, currentCity, productName, productRequirement, attachments]);
 
+  /* ----------------------------------
+     Handlers
+  -----------------------------------*/
   const handleProductSubmit = (name: string) => {
     setProductName(name);
     setProductRequirement({ ...productRequirement, productName: name });
@@ -192,12 +225,11 @@ const AppContent: React.FC = () => {
     setScreen('welcome');
   };
 
+  /* ----------------------------------
+     UI
+  -----------------------------------*/
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading hoko…
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center">Loading hoko…</div>;
   }
 
   return (
