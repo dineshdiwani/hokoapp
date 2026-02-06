@@ -1,10 +1,8 @@
+
+
 import { createClient } from '@supabase/supabase-js';
 
+const supabaseUrl = 'https://ilzlduzijertrwghcdli.supabase.co';
+const supabaseKey = 'PASTE_ANON_PUBLIC_KEY_HEREeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsemxkdXppamVydHJ3Z2hjZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4Mzc2NTcsImV4cCI6MjA4NTQxMzY1N30.y30Imn1z5kT3FPDZG2b2YLETwJtmizc52SVmIoqMeKs';
 
-// Initialize database client
-const supabaseUrl = 'https://xndebmngmwspqicrwgnn.databasepad.com';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjcyOTE3YzdjLTJiOWUtNDMxOS05YTRmLTI2MDRkMzhjYzFlZSJ9.eyJwcm9qZWN0SWQiOiJ4bmRlYm1uZ213c3BxaWNyd2dubiIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzY5NzQ4MDQ5LCJleHAiOjIwODUxMDgwNDksImlzcyI6ImZhbW91cy5kYXRhYmFzZXBhZCIsImF1ZCI6ImZhbW91cy5jbGllbnRzIn0.Ax7P53XoKsO1NU688G9fqw40DEMputKqAT2Y8LYy7Bg';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-
-export { supabase };
+export const supabase = createClient(supabaseUrl, supabaseKey);
