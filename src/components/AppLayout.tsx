@@ -7,19 +7,25 @@ import OTPLoginPage from './OTPLoginPage';
 import Dashboard from './Dashboard';
 import PostSuccessPopup from './PostSuccessPopup';
 
-type AppScreen = 'welcome' | 'product-details' | 'login' | 'seller-login' | 'buyer-login' | 'dashboard';
+type AppScreen =
+  | 'welcome'
+  | 'product-details'
+  | 'login'
+  | 'seller-login'
+  | 'buyer-login'
+  | 'dashboard';
 
 const AppContent: React.FC = () => {
-  const { 
-    user, 
-    setUser, 
-    currentCity, 
+  const {
+    user,
+    setUser,
+    currentCity,
     setCurrentCity,
-    productRequirement, 
+    productRequirement,
     setProductRequirement,
-    isLoading
+    isLoading,
   } = useApp();
-  
+
   const [screen, setScreen] = useState<AppScreen>('welcome');
   const [productName, setProductName] = useState('');
   const [showPostSuccess, setShowPostSuccess] = useState(false);
@@ -28,87 +34,80 @@ const AppContent: React.FC = () => {
   const [attachments, setAttachments] = useState<File[]>([]);
   const postCreatedRef = useRef(false);
 
-  // Check if user is already logged in on mount
+  // Redirect logged-in users
   useEffect(() => {
     if (user && currentCity && screen === 'welcome') {
       setScreen('dashboard');
     }
-  }, [user, currentCity]);
+  }, [user, currentCity, screen]);
 
-  // Create post when user logs in and there's a pending post
+  // ✅ CREATE POST (CITY-SAFE)
   useEffect(() => {
     const createPendingPost = async () => {
-      if (pendingPost && user && user.city_id && productName && !postCreatedRef.current) {
-        postCreatedRef.current = true;
-        setIsSubmittingPost(true);
-        
-        try {
-          // TODO: Upload attachments to storage if needed
-          // For now, we'll just create the post without attachments
-          // In a production app, you'd upload files to Supabase Storage first
-          
-          const { error } = await supabase
-            .from('posts')
-            .insert({
-              user_id: user.id,
-              city_id: user.city_id,
-              product_name: productName,
-              category: productRequirement.category || null,
-              brand: productRequirement.brand || null,
-              quantity: productRequirement.quantity || 1,
-              unit: productRequirement.unit || 'pieces',
-              fragrance: productRequirement.fragrance || null,
-              details: productRequirement.details || null,
-              status: 'active',
-              offer_count: 0
-            });
+      if (
+        !pendingPost ||
+        !user ||
+        !currentCity?.id ||
+        !productName ||
+        postCreatedRef.current
+      ) {
+        return;
+      }
 
-          if (!error) {
-            setShowPostSuccess(true);
-          } else {
-            console.error('Error creating post:', error);
-          }
-        } catch (err) {
-          console.error('Error creating post:', err);
-        } finally {
-          setIsSubmittingPost(false);
-          setPendingPost(false);
-          setAttachments([]);
+      postCreatedRef.current = true;
+      setIsSubmittingPost(true);
+
+      try {
+        const { error } = await supabase.from('posts').insert({
+          user_id: user.id,
+          city_id: currentCity.id, // ✅ FIXED
+          product_name: productName,
+          category: productRequirement.category || null,
+          brand: productRequirement.brand || null,
+          quantity: productRequirement.quantity || 1,
+          unit: productRequirement.unit || 'pieces',
+          fragrance: productRequirement.fragrance || null,
+          details: productRequirement.details || null,
+          status: 'active',
+          offer_count: 0,
+        });
+
+        if (error) {
+          console.error('Error creating post:', error);
+        } else {
+          setShowPostSuccess(true);
         }
+      } catch (err) {
+        console.error('Unexpected error creating post:', err);
+      } finally {
+        setIsSubmittingPost(false);
+        setPendingPost(false);
+        setAttachments([]);
       }
     };
 
     createPendingPost();
-  }, [pendingPost, user, productName, productRequirement]);
+  }, [pendingPost, user, currentCity, productName, productRequirement]);
 
   const handleProductSubmit = (name: string) => {
     setProductName(name);
-    setProductRequirement({
-      ...productRequirement,
-      productName: name
-    });
+    setProductRequirement({ ...productRequirement, productName: name });
     setScreen('product-details');
   };
 
   const handleProductDetailsSubmit = async (files?: File[]) => {
-    if (files) {
-      setAttachments(files);
-    }
-    
-    // Check if user is already logged in
-    if (user && user.city_id) {
-      // User is logged in - create post directly
+    if (files) setAttachments(files);
+
+    if (user && currentCity?.id) {
       postCreatedRef.current = false;
       setPendingPost(true);
       setScreen('dashboard');
     } else {
-      // User not logged in - go to login
       setScreen('login');
     }
   };
 
   const handleLoginSuccess = () => {
-    // Mark that we have a pending post to create
     if (productName) {
       postCreatedRef.current = false;
       setPendingPost(true);
@@ -116,17 +115,10 @@ const AppContent: React.FC = () => {
     setScreen('dashboard');
   };
 
-  const handleSellerLoginSuccess = () => {
-    setScreen('dashboard');
-  };
-
-  const handleBuyerLoginSuccess = () => {
-    // Direct buyer login - go to dashboard without creating a post
-    setScreen('dashboard');
-  };
+  const handleSellerLoginSuccess = () => setScreen('dashboard');
+  const handleBuyerLoginSuccess = () => setScreen('dashboard');
 
   const handleNewPost = () => {
-    // Reset product requirement but keep user logged in
     setProductRequirement({
       productName: '',
       category: '',
@@ -134,14 +126,13 @@ const AppContent: React.FC = () => {
       quantity: 1,
       unit: 'pieces',
       fragrance: '',
-      details: ''
+      details: '',
     });
     setProductName('');
     setAttachments([]);
     postCreatedRef.current = false;
     setScreen('welcome');
   };
-
 
   const handleLogout = () => {
     sessionStorage.removeItem('hoko_user');
@@ -154,7 +145,7 @@ const AppContent: React.FC = () => {
       quantity: 1,
       unit: 'pieces',
       fragrance: '',
-      details: ''
+      details: '',
     });
     setProductName('');
     setAttachments([]);
@@ -163,32 +154,15 @@ const AppContent: React.FC = () => {
     setScreen('welcome');
   };
 
-
-  const handleRegisterSeller = () => {
-    // Check if user is already logged in
-    if (user) {
-      // User is logged in - update to seller directly
-      // This would need a separate flow to update user to seller
-      // For now, go to seller login to complete seller profile
-      setScreen('seller-login');
-    } else {
-      setScreen('seller-login');
-    }
-  };
+  const handleRegisterSeller = () => setScreen('seller-login');
 
   const handleLoginAsBuyer = () => {
-    // Check if user is already logged in
-    if (user && currentCity) {
-      // Already logged in as buyer, go to dashboard
-      setScreen('dashboard');
-    } else {
-      setScreen('buyer-login');
-    }
+    if (user && currentCity) setScreen('dashboard');
+    else setScreen('buyer-login');
   };
 
   const handleClosePostSuccess = () => {
     setShowPostSuccess(false);
-    // Reset product data
     setProductName('');
     setAttachments([]);
     setProductRequirement({
@@ -198,15 +172,11 @@ const AppContent: React.FC = () => {
       quantity: 1,
       unit: 'pieces',
       fragrance: '',
-      details: ''
+      details: '',
     });
   };
 
-
-  // Handle switch to buyer mode from dashboard (for sellers)
   const handleSwitchToBuyerMode = () => {
-    // Reset product requirement and go to welcome page to create a new post
-    // User stays logged in
     setProductRequirement({
       productName: '',
       category: '',
@@ -214,7 +184,7 @@ const AppContent: React.FC = () => {
       quantity: 1,
       unit: 'pieces',
       fragrance: '',
-      details: ''
+      details: '',
     });
     setProductName('');
     setAttachments([]);
@@ -222,14 +192,10 @@ const AppContent: React.FC = () => {
     setScreen('welcome');
   };
 
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading hoko...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        Loading hoko…
       </div>
     );
   }
@@ -237,7 +203,7 @@ const AppContent: React.FC = () => {
   return (
     <>
       {screen === 'welcome' && (
-        <WelcomePage 
+        <WelcomePage
           onSubmit={handleProductSubmit}
           onRegisterSeller={handleRegisterSeller}
           onLoginAsBuyer={handleLoginAsBuyer}
@@ -286,7 +252,6 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* Post success popup */}
       {showPostSuccess && currentCity && (
         <PostSuccessPopup
           cityName={currentCity.name}
@@ -294,12 +259,10 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* Loading overlay for post submission */}
       {isSubmittingPost && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 text-center">
-            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-700">Posting your requirement...</p>
+          <div className="bg-white p-6 rounded-xl">
+            Posting your requirement…
           </div>
         </div>
       )}
@@ -307,12 +270,10 @@ const AppContent: React.FC = () => {
   );
 };
 
-const AppLayout: React.FC = () => {
-  return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
-  );
-};
+const AppLayout: React.FC = () => (
+  <AppProvider>
+    <AppContent />
+  </AppProvider>
+);
 
 export default AppLayout;
